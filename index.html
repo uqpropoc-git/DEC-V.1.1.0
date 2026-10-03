@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Drone Environment Check</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: '#0284c7',
+            safe: '#22c55e',
+            warning: '#eab308',
+            danger: '#ef4444'
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans flex flex-col antialiased">
+
+  <!-- Header -->
+  <header class="bg-slate-800/80 backdrop-blur border-b border-slate-700 sticky top-0 z-50">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <i data-lucide="plane-takeoff" class="text-sky-400 w-6 h-6"></i>
+        <h1 class="font-bold text-lg text-white tracking-wide">DroneEnv <span class="text-sky-400 text-xs px-2 py-0.5 rounded bg-sky-950 border border-sky-800">Check</span></h1>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="btn-refresh" class="p-2 rounded-lg bg-slate-700 hover:bg-slate-600 transition text-slate-200">
+          <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+        </button>
+        <button id="btn-install" class="hidden px-3 py-1.5 text-xs font-semibold rounded-lg bg-sky-600 hover:bg-sky-500 text-white transition flex items-center gap-1">
+          <i data-lucide="download" class="w-3.5 h-3.5"></i> Install App
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-5xl mx-auto px-4 py-6 flex-1 w-full space-y-6">
+
+    <!-- Status Banner Status Kelayakan -->
+    <div id="safety-card" class="p-5 rounded-2xl bg-slate-800 border-2 border-slate-700 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div class="flex items-center gap-4">
+        <div id="safety-icon-bg" class="p-3 rounded-xl bg-slate-700 text-slate-400">
+          <i id="safety-icon" data-lucide="shield-alert" class="w-8 h-8"></i>
+        </div>
+        <div>
+          <div class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Status Kelayakan Penerbangan</div>
+          <div id="safety-status-text" class="text-2xl font-black text-slate-300">MEMUAT DATA...</div>
+          <div id="safety-reason" class="text-xs text-slate-400 mt-0.5">Sedang mengecek lokasi dan parameter lingkungan...</div>
+        </div>
+      </div>
+      <button id="btn-quick-check" class="w-full sm:w-auto px-5 py-2.5 bg-sky-600 hover:bg-sky-500 font-medium text-sm rounded-xl transition flex items-center justify-center gap-2">
+        <i data-lucide="locate-fixed" class="w-4 h-4"></i> Cek Lokasi Saya
+      </button>
+    </div>
+
+    <!-- Grid Metric Environment -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <!-- Suhu -->
+      <div class="bg-slate-800/60 border border-slate-700/60 p-4 rounded-xl flex items-center gap-3">
+        <div class="p-2.5 bg-orange-500/10 text-orange-400 rounded-lg">
+          <i data-lucide="thermometer" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <div class="text-xs text-slate-400">Suhu Udara</div>
+          <div id="val-temp" class="text-lg font-bold">-- °C</div>
+        </div>
+      </div>
+
+      <!-- Kecepatan Angin -->
+      <div class="bg-slate-800/60 border border-slate-700/60 p-4 rounded-xl flex items-center gap-3">
+        <div class="p-2.5 bg-sky-500/10 text-sky-400 rounded-lg">
+          <i data-lucide="wind" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <div class="text-xs text-slate-400">Kecepatan Angin</div>
+          <div id="val-wind" class="text-lg font-bold">-- km/h</div>
+        </div>
+      </div>
+
+      <!-- Arah Angin -->
+      <div class="bg-slate-800/60 border border-slate-700/60 p-4 rounded-xl flex items-center gap-3">
+        <div class="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-lg">
+          <i data-lucide="compass" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <div class="text-xs text-slate-400">Arah Angin</div>
+          <div id="val-wind-dir" class="text-lg font-bold">--°</div>
+        </div>
+      </div>
+
+      <!-- NOTAM / Airspace -->
+      <div class="bg-slate-800/60 border border-slate-700/60 p-4 rounded-xl flex items-center gap-3">
+        <div class="p-2.5 bg-purple-500/10 text-purple-400 rounded-lg">
+          <i data-lucide="radio" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <div class="text-xs text-slate-400">Status NOTAM</div>
+          <div id="val-notam" class="text-sm font-semibold text-emerald-400">AMAN (CLASS G)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Peta & Form Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- Peta Interaktif (2 Kolom) -->
+      <div class="lg:col-span-2 bg-slate-800 border border-slate-700 rounded-2xl p-4 flex flex-col h-[380px]">
+        <div class="flex items-center justify-between mb-3">
+          <div class="text-sm font-semibold flex items-center gap-2">
+            <i data-lucide="map-pin" class="w-4 h-4 text-sky-400"></i> Peta Posisi Drone Take-Off / Landing
+          </div>
+          <span id="txt-coords" class="text-xs font-mono text-slate-400">Lat: - | Lon: -</span>
+        </div>
+        <div id="map" class="w-full flex-1 rounded-xl overflow-hidden z-10"></div>
+      </div>
+
+      <!-- Form Assessment (1 Kolom) -->
+      <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5 flex flex-col justify-between">
+        <div>
+          <h3 class="font-bold text-slate-100 mb-4 flex items-center gap-2 text-sm">
+            <i data-lucide="file-check-2" class="w-4 h-4 text-sky-400"></i> Simpan Assessment Pre-Flight
+          </h3>
+          <form id="form-log" class="space-y-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-400 mb-1">Nama Pilot / Operator</label>
+              <input type="text" id="pilot_name" required placeholder="Contoh: Capt. Budi" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-sky-500">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-400 mb-1">Nama Lokasi / Site</label>
+              <input type="text" id="location_name" placeholder="Mendeteksi..." class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-sky-500">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-400 mb-1">Catatan Lingkungan</label>
+              <textarea id="notes" rows="2" placeholder="Catatan fisik (pohon, kabel listrik, keramaian)..." class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-sky-500"></textarea>
+            </div>
+            <button type="submit" id="btn-submit" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm rounded-lg transition flex items-center justify-center gap-2">
+              <i data-lucide="cloud-upload" class="w-4 h-4"></i> Simpan ke Cloud Log
+            </button>
+          </form>
+        </div>
+        <div id="msg-alert" class="mt-3 text-xs hidden p-2.5 rounded-lg"></div>
+      </div>
+    </div>
+
+    <!-- Log Histori -->
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-bold text-slate-100 flex items-center gap-2 text-sm">
+          <i data-lucide="history" class="w-4 h-4 text-sky-400"></i> Histori Assessment Lingkungan
+        </h3>
+        <span class="text-xs text-slate-400">Tersimpan di Google Sheets</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs text-slate-300">
+          <thead class="bg-slate-900/80 text-slate-400 uppercase font-semibold border-b border-slate-700">
+            <tr>
+              <th class="px-3 py-2">Waktu</th>
+              <th class="px-3 py-2">Pilot</th>
+              <th class="px-3 py-2">Lokasi</th>
+              <th class="px-3 py-2">Suhu</th>
+              <th class="px-3 py-2">Angin</th>
+              <th class="px-3 py-2">Status</th>
+            </tr>
+          </thead>
+          <tbody id="table-logs" class="divide-y divide-slate-700/50">
+            <tr>
+              <td colspan="6" class="text-center py-6 text-slate-500">Memuat data histori...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <footer class="border-t border-slate-800 py-4 text-center text-xs text-slate-500">
+    Drone Environment Check PWA &copy; 2026 - Powered by Google Apps Script & GitHub Pages
+  </footer>
+
+  <!-- Frontend Logic -->
+  <script>
+    // URL BACKEND GOOGLE APPS SCRIPT
+    const GAS_API_URL = "https://script.google.com/macros/s/AKfycbwNnefGFHl2HvtmlLyOT2k5DKCs83jBKgVMpYUAz5XEYUj50Htgyl3u16_OHzdmTYY/exec";
+
+    let map, marker;
+    let currentData = {
+      lat: -0.50218,
+      lon: 117.1538,
+      temp: 0,
+      windSpeed: 0,
+      windDir: 0,
+      weatherCond: 'Cerah',
+      safetyStatus: 'SAFE'
+    };
+
+    document.addEventListener("DOMContentLoaded", () => {
+      lucide.createIcons();
+      initMap();
+      getUserLocation();
+      loadLogs();
+
+      document.getElementById("btn-quick-check").addEventListener("click", getUserLocation);
+      document.getElementById("btn-refresh").addEventListener("click", () => {
+        getUserLocation();
+        loadLogs();
+      });
+      document.getElementById("form-log").addEventListener("submit", handleFormSubmit);
+    });
+
+    // Initialize Map
+    function initMap() {
+      map = L.map('map').setView([currentData.lat, currentData.lon], 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap'
+      }).addTo(map);
+
+      marker = L.marker([currentData.lat, currentData.lon], { draggable: true }).addTo(map);
+      marker.on('dragend', function (e) {
+        const coord = e.target.getLatLng();
+        updateLocation(coord.lat, coord.lng);
+      });
+    }
+
+    // Get Geolocation Device
+    function getUserLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const lat = pos.coords.latitude;
+            const lon = pos.coords.longitude;
+            map.setView([lat, lon], 15);
+            marker.setLatLng([lat, lon]);
+            updateLocation(lat, lon);
+          },
+          (err) => {
+            console.warn("Geolocation gagal:", err.message);
+            updateLocation(currentData.lat, currentData.lon);
+          }
+        );
+      } else {
+        updateLocation(currentData.lat, currentData.lon);
+      }
+    }
+
+    // Update Coordinates & Fetch Weather Data
+    async function updateLocation(lat, lon) {
+      currentData.lat = parseFloat(lat).toFixed(5);
+      currentData.lon = parseFloat(lon).toFixed(5);
+
+      document.getElementById("txt-coords").innerText = `Lat: ${currentData.lat} | Lon: ${currentData.lon}`;
+
+      // Re-fetch weather via GAS Proxy
+      try {
+        const res = await fetch(`${GAS_API_URL}?action=fetch_weather&lat=${currentData.lat}&lon=${currentData.lon}`);
+        const result = await res.json();
+
+        if (result.status === "success" && result.data.current_weather) {
+          const cw = result.data.current_weather;
+          currentData.temp = cw.temperature;
+          currentData.windSpeed = cw.windspeed;
+          currentData.windDir = cw.winddirection;
+
+          document.getElementById("val-temp").innerText = `${cw.temperature} °C`;
+          document.getElementById("val-wind").innerText = `${cw.windspeed} km/h`;
+          document.getElementById("val-wind-dir").innerText = `${cw.winddirection}°`;
+
+          calculateSafety(cw.windspeed, cw.temperature);
+        }
+      } catch (err) {
+        console.error("Gagal load cuaca:", err);
+      }
+
+      // Reverse Geocoding Sederhana (Nama Lokasi)
+      try {
+        const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${currentData.lat}&lon=${currentData.lon}`);
+        const geoData = await geoRes.json();
+        if (geoData.display_name) {
+          document.getElementById("location_name").value = geoData.display_name.split(',')[0];
+        }
+      } catch (e) {}
+    }
+
+    // Calculate Safety Threshold Status
+    function calculateSafety(windSpeed, temp) {
+      const card = document.getElementById("safety-card");
+      const statusTxt = document.getElementById("safety-status-text");
+      const reasonTxt = document.getElementById("safety-reason");
+      const iconBg = document.getElementById("safety-icon-bg");
+
+      // Batas Kecepatan Angin (Standard Safe < 20 km/h)
+      if (windSpeed >= 28) {
+        currentData.safetyStatus = "DANGER";
+        statusTxt.innerText = "DO NOT FLY (BAHAYA)";
+        statusTxt.className = "text-2xl font-black text-red-500";
+        reasonTxt.innerText = `Kecepatan angin terlalu tinggi (${windSpeed} km/h) melebihi batas aman drone.`;
+        card.className = "p-5 rounded-2xl bg-red-950/30 border-2 border-red-500/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4";
+        iconBg.className = "p-3 rounded-xl bg-red-500/20 text-red-500";
+      } else if (windSpeed >= 18) {
+        currentData.safetyStatus = "WARNING";
+        statusTxt.innerText = "CAUTION (WASPADA)";
+        statusTxt.className = "text-2xl font-black text-amber-400";
+        reasonTxt.innerText = `Angin sedang (${windSpeed} km/h). Harap pantau konsumsi baterai ekstra.`;
+        card.className = "p-5 rounded-2xl bg-amber-950/30 border-2 border-amber-500/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4";
+        iconBg.className = "p-3 rounded-xl bg-amber-500/20 text-amber-400";
+      } else {
+        currentData.safetyStatus = "SAFE";
+        statusTxt.innerText = "SAFE TO FLY (AMAN)";
+        statusTxt.className = "text-2xl font-black text-emerald-400";
+        reasonTxt.innerText = "Kondisi angin dan lingkungan ideal untuk penerbangan.";
+        card.className = "p-5 rounded-2xl bg-emerald-950/30 border-2 border-emerald-500/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4";
+        iconBg.className = "p-3 rounded-xl bg-emerald-500/20 text-emerald-400";
+      }
+    }
+
+    // Handle Form Submit
+    async function handleFormSubmit(e) {
+      e.preventDefault();
+      const btn = document.getElementById("btn-submit");
+      const alertBox = document.getElementById("msg-alert");
+
+      btn.disabled = true;
+      btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Menyimpan...`;
+      lucide.createIcons();
+
+      const payload = {
+        action: "save_log",
+        data: {
+          pilot_name: document.getElementById("pilot_name").value,
+          location_name: document.getElementById("location_name").value,
+          latitude: currentData.lat,
+          longitude: currentData.lon,
+          temperature_c: currentData.temp,
+          wind_speed_kmh: currentData.windSpeed,
+          wind_direction: currentData.windDir,
+          weather_cond: currentData.weatherCond,
+          notam_status: "CLEAR",
+          safety_status: currentData.safetyStatus,
+          notes: document.getElementById("notes").value
+        }
+      };
+
+      try {
+        const res = await fetch(GAS_API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+
+        if (result.status === "success") {
+          alertBox.className = "mt-3 text-xs p-2.5 rounded-lg bg-emerald-950 border border-emerald-700 text-emerald-300";
+          alertBox.innerText = "✅ Assessment berhasil disimpan ke database cloud!";
+          alertBox.classList.remove("hidden");
+          document.getElementById("notes").value = "";
+          loadLogs();
+        } else {
+          throw new Error(result.message);
+        }
+      } catch (err) {
+        alertBox.className = "mt-3 text-xs p-2.5 rounded-lg bg-red-950 border border-red-700 text-red-300";
+        alertBox.innerText = "❌ Gagal menyimpan: " + err.message;
+        alertBox.classList.remove("hidden");
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<i data-lucide="cloud-upload" class="w-4 h-4"></i> Simpan ke Cloud Log`;
+        lucide.createIcons();
+      }
+    }
+
+    // Load Log History
+    async function loadLogs() {
+      const tbody = document.getElementById("table-logs");
+      try {
+        const res = await fetch(`${GAS_API_URL}?action=get_logs`);
+        const result = await res.json();
+
+        if (result.status === "success" && result.data.length > 0) {
+          tbody.innerHTML = result.data.map(log => `
+            <tr class="hover:bg-slate-700/30">
+              <td class="px-3 py-2 text-slate-400 font-mono text-[10px]">${new Date(log.timestamp).toLocaleString('id-ID')}</td>
+              <td class="px-3 py-2 font-medium text-white">${log.pilot_name}</td>
+              <td class="px-3 py-2">${log.location_name}</td>
+              <td class="px-3 py-2">${log.temperature_c} °C</td>
+              <td class="px-3 py-2">${log.wind_speed_kmh} km/h</td>
+              <td class="px-3 py-2">
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold ${
+                  log.safety_status === 'SAFE' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
+                  log.safety_status === 'WARNING' ? 'bg-amber-950 text-amber-400 border border-amber-800' : 'bg-red-950 text-red-400 border border-red-800'
+                }">${log.safety_status}</span>
+              </td>
+            </tr>
+          `).join('');
+        } else {
+          tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-500">Belum ada catatan assessment.</td></tr>`;
+        }
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-red-400">Gagal memuat log.</td></tr>`;
+      }
+    }
+
+    // Register Service Worker PWA
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+          .then(reg => console.log('SW Registered:', reg.scope))
+          .catch(err => console.log('SW Fail:', err));
+      });
+    }
+
+    // PWA Install Prompt Handler
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      const installBtn = document.getElementById('btn-install');
+      installBtn.classList.remove('hidden');
+      installBtn.addEventListener('click', () => {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choiceResult) => {
+          if (choiceResult.outcome === 'accepted') {
+            installBtn.classList.add('hidden');
+          }
+          deferredPrompt = null;
+        });
+      });
+    });
+  </script>
+</body>
+</html>
